@@ -1,72 +1,162 @@
 <?php
 
 namespace app\controllers;
-
-
+use app\models\SignupForm;
+use app\models\User;
 use Yii;
-use yii\web\Controller;
-use app\models\Signup;
-use app\models\Login;
+use yii\filters\AccessControl;
+use yii\web\Response;
+use yii\filters\VerbFilter;
+use app\models\LoginForm;
 
 
-class SiteController extends Controller
+class SiteController extends CustomController
 {
-    public function actionIndex()
+    /**
+     * @inheritdoc
+     */
+    public function behaviors()
     {
-        return $this->render('index');
+        return [
+            'access' => [
+                'class' => AccessControl::className(),
+                'only' => ['logout'],
+                'rules' => [
+                    [
+                        'actions' => ['logout'],
+                        'allow' => true,
+                        'roles' => ['@'],
+                    ],
+                ],
+            ],
+            'verbs' => [
+                'class' => VerbFilter::className(),
+                'actions' => [
+                    'logout' => ['post', 'get'],
+                ],
+            ],
+        ];
     }
 
-    public function actionLogout()
+    /**
+     * @inheritdoc
+     */
+    public function actions()
     {
-        if(!Yii::$app->user->isGuest)
-        {
-            Yii::$app->user->logout();
-            return $this->redirect(['login']);
+        return [
+            'error' => [
+                'class' => 'yii\web\ErrorAction',
+            ],
+            'captcha' => [
+                'class' => 'yii\captcha\CaptchaAction',
+                'fixedVerifyCode' => YII_ENV_TEST ? 'testme' : null,
+            ],
+        ];
+    }
+
+    /**
+     * Displays homepage.
+     *
+     * @return string
+     */
+    public function actionIndex()
+    {
+        return $this->render('index'/*, compact('model')*/);
+    }
+
+    /**
+     * Login action.
+     *
+     * @return Response|string
+     */
+    public function actionLogin()
+    {
+        //$this->enableCsrfValidation = false;
+        if (!Yii::$app->user->isGuest) {
+            return $this->goBack();
         }
+        $this->setMeta('Авторизация');
+        $model = new LoginForm();
+
+        /*CustomController::printr($model->scenario);
+        exit;*/
+        if ($model->load(Yii::$app->request->post()) && $model->login() ) {
+
+            return $this->goBack();
+        }
+        return $this->render('login', [
+            'model' => $model,
+        ]);
     }
 
     public function actionSignup()
     {
-        $model = new Signup();
+        $this->setMeta('Регистрация');
+        $model = new SignupForm();
 
-        if(isset($_POST['Signup']))
-        {
-            $model->attributes = Yii::$app->request->post('Signup');
+        if ($model->load(Yii::$app->request->post())) {
+            if ($user = $model->signup()) {
 
-            if($model->validate() && $model->signup())
-            {
-                return $this->redirect(['index']);
+                Yii::$app->session->setFlash('success', 'Вам  отправлена ссылка с подтверждением Email');
+                return $this->goHome();
             }
         }
-
-        return $this->render('signup',['model'=>$model]);
+        return $this->render('signup', [
+            'model' => $model,
+        ]);
     }
 
-
-    //1. Проверить существует ли пользователь?
-    //2. "Внести" пользователя в систему(в сессию)
-
-    public function actionLogin()
+    public function actionConfirmemail()
     {
-        if(!Yii::$app->user->isGuest)
+        $code = Yii::$app->request->get('code');
+        $email = Yii::$app->request->get('email');
+
+        if (!Yii::$app->user->isGuest)
         {
             return $this->goHome();
         }
 
-        $login_model = new Login();
+        $user = User::find()->where(['code' => $code, 'email' => $email])->one();
 
-        if( Yii::$app->request->post('Login'))
+        if($user->active == 0)
         {
-            $login_model->attributes = Yii::$app->request->post('Login');
+            $user->code = '';
+            $user->active = User::ACTIVE_USER;
 
-            if($login_model->validate())
+            if($user->save())
             {
-                Yii::$app->user->login($login_model->getUser());
+                Yii::$app->session->setFlash('success', 'Аккаунт активирован');
                 return $this->goHome();
             }
-        }
 
-        return $this->render('login',['login_model'=>$login_model]);
+        }
+        else
+        {
+
+            Yii::$app->session->setFlash('error', 'Не удалось активировать аккаунт, обратитесь к Администрации сайта.');
+            return $this->goHome();
+        }
     }
 
+    /**
+     * Logout action.
+     *
+     * @return Response
+     */
+    public function actionLogout()
+    {
+        Yii::$app->user->logout();
+
+        return $this->goHome();
+    }
+
+    /**
+     * Displays about page.
+     *
+     * @return string
+     */
+    public function actionAbout()
+    {
+        return $this->render('about');
+    }
 }
