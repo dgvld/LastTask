@@ -1,11 +1,13 @@
 <?php
 
 namespace app\models;
+use yii\behaviors\TimestampBehavior;
 use yii\db\ActiveRecord;
 use yii\web\IdentityInterface;
 use yii\helpers\Url;
 use yii\helpers\Html;
 use app\models\SignupForm;
+use yii\db\Expression;
 use Yii;
 
 
@@ -25,9 +27,6 @@ class User extends ActiveRecord implements IdentityInterface
     }
 
 
-    /**
-     * @inheritdoc
-     */
     // Ищим пользователя по id
     public static function findIdentity($id)
     {
@@ -141,6 +140,8 @@ class User extends ActiveRecord implements IdentityInterface
             ->send();
         return $sendingResult;
     }
-
-
+    public function getDate()
+    {
+        return Yii::$app->formatter->asDate($this->date_create);
+    }
 }

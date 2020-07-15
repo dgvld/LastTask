@@ -93,7 +93,7 @@ class SiteController extends CustomController
     {
         $this->setMeta('Регистрация');
         $model = new SignupForm();
-
+        $model->date_create = gmdate("Y-m-d H:i:s");
         if ($model->load(Yii::$app->request->post())) {
             if ($user = $model->signup()) {
 
